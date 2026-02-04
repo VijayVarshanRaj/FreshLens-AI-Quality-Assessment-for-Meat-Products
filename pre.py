@@ -2,12 +2,16 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import load_img, img_to_array
+from tensorflow.keras.preprocessing.image import img_to_array
 from PIL import Image
 
 # ---------- CONFIG ----------
-st.set_page_config(page_title="FreshLens AI: Quality Assessment for Meat Products", layout="centered")
-MODEL_PATH = "model_v1_meat.h5"  # replace with your model path
+st.set_page_config(
+    page_title="FreshLens AI: Quality Assessment for Meat Products",
+    layout="centered"
+)
+
+MODEL_PATH = "model_v1_meat.h5"
 IMAGE_SIZE = (128, 128)
 CLASS_NAMES = ['Fresh', 'Half-Fresh', 'Spoiled']
 CLASS_COLORS = ['green', 'orange', 'red']
@@ -15,89 +19,89 @@ CLASS_COLORS = ['green', 'orange', 'red']
 # ---------- LOAD MODEL ----------
 @st.cache_resource
 def load_model_cache():
-    return load_model(MODEL_PATH)
+    return load_model(MODEL_PATH, compile=False)
 
 model = load_model_cache()
 
-# ---------- APP ----------
+# ---------- APP UI ----------
 st.title("🥩 FreshLens AI: Quality Assessment for Meat Products")
 st.write("Upload an image of meat and the AI will predict its freshness.")
 
-# Upload image
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader(
+    "Choose an image...",
+    type=["jpg", "jpeg", "png"]
+)
 
 if uploaded_file is not None:
     # Display uploaded image
-    img = Image.open(uploaded_file)
-    st.image(img, caption='Uploaded Image', use_column_width=True)
+    img = Image.open(uploaded_file).convert("RGB")
+    st.image(img, caption="Uploaded Image", use_column_width=True)
 
-    # Preprocess image
-    img_array = img.resize(IMAGE_SIZE)
-    img_array = img_to_array(img_array)
+    # ---------- PREPROCESS ----------
+    img_resized = img.resize(IMAGE_SIZE)
+    img_array = img_to_array(img_resized)
+    img_array = img_array / 255.0            # ✅ NORMALIZATION
     img_array = np.expand_dims(img_array, axis=0)
 
-    # Prediction
+    # ---------- PREDICTION ----------
     pred_probs = model.predict(img_array)[0]
-    pred_probs = np.round(pred_probs, 2)
-    pred_class = CLASS_NAMES[np.argmax(pred_probs)]
+    pred_class_index = np.argmax(pred_probs)
+    pred_class = CLASS_NAMES[pred_class_index]
 
-    # Display prediction
+    # ---------- DISPLAY RESULT ----------
     st.subheader(f"Prediction: **{pred_class}**")
+    st.write(f"Confidence: **{pred_probs[pred_class_index] * 100:.2f}%**")
 
-    # Colored Bar chart
+    # ---------- BAR CHART ----------
     fig, ax = plt.subplots(figsize=(6, 3))
-    ax.barh(CLASS_NAMES, [1, 1, 1], color='white', edgecolor='gray', linewidth=2, height=0.5)
     ax.barh(CLASS_NAMES, pred_probs, color=CLASS_COLORS, height=0.5)
 
-    # Add percentages on top of bars
-    for index, value in enumerate(pred_probs):
-        ax.text(value + 0.02, index, f"{100*value:.2f}%", fontsize=12, fontweight='bold', va='center')
+    for i, v in enumerate(pred_probs):
+        ax.text(v + 0.02, i, f"{v * 100:.2f}%", va='center', fontweight='bold')
 
     ax.set_xlim(0, 1.1)
     ax.set_xticks([])
-    ax.set_yticks(range(len(CLASS_NAMES)))
-    ax.set_yticklabels(CLASS_NAMES, fontweight='bold')
+    ax.set_title("Prediction Confidence")
     st.pyplot(fig)
 
-    # ---------------- ENHANCED REASONING ----------------
+    # ---------- REASONING ----------
     reasoning = {
         "Fresh": (
-            "✅ Color: Bright and natural.\n"
-            "✅ Texture: Firm and moist.\n"
-            "✅ Odor: Minimal or no odor.\n"
-            "➡ Action: Safe to consume immediately or store properly."
+            "✅ Color: Bright and natural\n"
+            "✅ Texture: Firm and moist\n"
+            "✅ Odor: Minimal or none\n"
+            "➡ Action: Safe to consume or store properly"
         ),
         "Half-Fresh": (
-            "⚠ Color: Slight discoloration.\n"
-            "⚠ Texture: Softer or slightly sticky.\n"
-            "⚠ Odor: Mild smell may be present.\n"
-            "➡ Action: Consume soon; cook immediately. Avoid long storage."
+            "⚠ Color: Slight discoloration\n"
+            "⚠ Texture: Slightly soft or sticky\n"
+            "⚠ Odor: Mild smell\n"
+            "➡ Action: Consume soon; cook immediately"
         ),
         "Spoiled": (
-            "❌ Color: Green/gray/brown discoloration.\n"
-            "❌ Texture: Slimy or mushy.\n"
-            "❌ Odor: Strong, unpleasant smell.\n"
-            "➡ Action: Do not consume. Discard immediately to avoid food poisoning."
+            "❌ Color: Green/gray/brown\n"
+            "❌ Texture: Slimy or mushy\n"
+            "❌ Odor: Strong unpleasant smell\n"
+            "➡ Action: Discard immediately"
         )
     }
 
     reasoning_colors = {
-        "Fresh": "#d4edda",      # light green
-        "Half-Fresh": "#fff3cd", # light yellow
-        "Spoiled": "#f8d7da"     # light red/pink
+        "Fresh": "#d4edda",
+        "Half-Fresh": "#fff3cd",
+        "Spoiled": "#f8d7da"
     }
 
-    # Convert \n to <br> for HTML formatting
-    reason_text = reasoning[pred_class].replace('\n', '<br>')
+    # Prepare text safely for HTML
+    reason_text = reasoning[pred_class].replace("\n", "<br>")
 
-    # Display reasoning with colored background
     st.markdown(
         f"""
-        <div style="background-color: {reasoning_colors[pred_class]};
-                    padding: 15px;
-                    border-radius: 10px;
-                    font-weight: bold;
-                    color: #000000;">
+        <div style="background-color:{reasoning_colors[pred_class]};
+                    padding:15px;
+                    border-radius:10px;
+                    font-weight:bold;
+                    color:#000;">
             {reason_text}
         </div>
         """,
