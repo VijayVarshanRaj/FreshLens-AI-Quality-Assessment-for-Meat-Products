@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
@@ -139,4 +138,3 @@ if uploaded_file is not None:
         """,
         unsafe_allow_html=True
     )
-```
